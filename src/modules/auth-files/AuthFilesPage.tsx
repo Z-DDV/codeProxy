@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { ConfirmModal } from "@/modules/ui/ConfirmModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/modules/ui/Tabs";
 import type { AuthFileItem } from "@/lib/http/types";
+import { channelGroupsApi, type ChannelGroupItem } from "@/lib/http/apis/channel-groups";
 import { proxiesApi, type ProxyPoolEntry } from "@/lib/http/apis/proxies";
 import { OAuthLoginDialog } from "@/modules/oauth/OAuthLoginDialog";
 import { AuthFileDetailModal } from "@/modules/auth-files/components/AuthFileDetailModal";
@@ -27,6 +28,7 @@ import {
   normalizeProviderKey,
   normalizeQuotaAutoRefreshMs,
   readAuthFilesUiState,
+  readAuthFileChannelName,
   resolveAuthFileStats,
   resolveFileType,
   resolveProviderLabel,
@@ -63,6 +65,63 @@ const buildAuthFilesSignature = (items: AuthFileItem[]): string =>
     )
     .sort()
     .join("\n");
+
+const normalizeChannelGroupMatchKey = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const buildChannelGroupOptions = (items: ChannelGroupItem[]): string[] => {
+  const seen = new Set<string>();
+  const options = ["all"];
+  items.forEach((item) => {
+    const name = String(item.name ?? "").trim();
+    if (!name) return;
+    const normalized = normalizeChannelGroupMatchKey(name);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    options.push(name);
+  });
+  return options;
+};
+
+const buildChannelGroupsByFileName = (
+  files: AuthFileItem[],
+  items: ChannelGroupItem[],
+): Record<string, string[]> => {
+  const groupNamesByChannel = new Map<string, string[]>();
+
+  items.forEach((item) => {
+    const groupName = String(item.name ?? "").trim();
+    if (!groupName) return;
+
+    const channelNames = new Set<string>();
+    (item.channels ?? []).forEach((value) => {
+      const normalized = normalizeChannelGroupMatchKey(value);
+      if (normalized) channelNames.add(normalized);
+    });
+    (item.channelDetails ?? []).forEach((detail) => {
+      const normalized = normalizeChannelGroupMatchKey(detail.name);
+      if (normalized) channelNames.add(normalized);
+    });
+
+    channelNames.forEach((channelName) => {
+      const current = groupNamesByChannel.get(channelName) ?? [];
+      if (!current.includes(groupName)) current.push(groupName);
+      groupNamesByChannel.set(channelName, current);
+    });
+  });
+
+  const groupsByFileName: Record<string, string[]> = {};
+  files.forEach((file) => {
+    const channelName = normalizeChannelGroupMatchKey(readAuthFileChannelName(file));
+    if (!channelName) return;
+    const groups = groupNamesByChannel.get(channelName);
+    if (groups?.length) groupsByFileName[file.name] = groups;
+  });
+
+  return groupsByFileName;
+};
 
 export function AuthFilesPage() {
   const { t } = useTranslation();
@@ -125,11 +184,14 @@ export function AuthFilesPage() {
   const [oauthDialogDefaultTab, setOauthDialogDefaultTab] = useState<OAuthDialogTab>("codex");
 
   const [filter, setFilter] = useState("all");
+  const [channelGroupFilter, setChannelGroupFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedFileNames, setSelectedFileNames] = useState<string[]>([]);
   const [proxyPoolEntries, setProxyPoolEntries] = useState<ProxyPoolEntry[]>([]);
   const [tagsEditorFileName, setTagsEditorFileName] = useState<string | null>(null);
+  const [channelGroups, setChannelGroups] = useState<ChannelGroupItem[]>([]);
+  const [channelGroupsLoaded, setChannelGroupsLoaded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const filesRef = useRef<AuthFileItem[]>(files);
@@ -230,6 +292,7 @@ export function AuthFilesPage() {
     if (!state) return;
     if (state.tab) setTab(state.tab);
     if (typeof state.filter === "string") setFilter(state.filter);
+    if (typeof state.channelGroup === "string") setChannelGroupFilter(state.channelGroup);
     if (typeof state.search === "string") setSearch(state.search);
     if (typeof state.page === "number" && Number.isFinite(state.page))
       setPage(Math.max(1, Math.round(state.page)));
@@ -250,8 +313,26 @@ export function AuthFilesPage() {
   }, []);
 
   useEffect(() => {
-    writeAuthFilesUiState({ tab, filter, search, page });
-  }, [filter, page, search, tab]);
+    let active = true;
+    void channelGroupsApi
+      .list()
+      .then((items) => {
+        if (active) setChannelGroups(items);
+      })
+      .catch(() => {
+        if (active) setChannelGroups([]);
+      })
+      .finally(() => {
+        if (active) setChannelGroupsLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    writeAuthFilesUiState({ tab, filter, channelGroup: channelGroupFilter, search, page });
+  }, [channelGroupFilter, filter, page, search, tab]);
 
   useEffect(() => {
     if (tab !== "files") return;
@@ -263,10 +344,29 @@ export function AuthFilesPage() {
     setPage(1);
   }, []);
 
+  const updateChannelGroupFilter = useCallback((value: string) => {
+    setChannelGroupFilter(value);
+    setPage(1);
+  }, []);
+
   const updateSearch = useCallback((value: string) => {
     setSearch(value);
     setPage(1);
   }, []);
+
+  const channelGroupOptions = useMemo(() => buildChannelGroupOptions(channelGroups), [channelGroups]);
+  const channelGroupsByFileName = useMemo(
+    () => buildChannelGroupsByFileName(files, channelGroups),
+    [channelGroups, files],
+  );
+
+  useEffect(() => {
+    if (!channelGroupsLoaded) return;
+    const optionKeys = new Set(channelGroupOptions.map(normalizeChannelGroupMatchKey));
+    if (!optionKeys.has(normalizeChannelGroupMatchKey(channelGroupFilter))) {
+      setChannelGroupFilter("all");
+    }
+  }, [channelGroupFilter, channelGroupOptions, channelGroupsLoaded]);
 
   const {
     providerOptions,
@@ -288,6 +388,8 @@ export function AuthFilesPage() {
   } = useAuthFilesListState({
     files,
     filter,
+    channelGroupFilter,
+    channelGroupsByFileName,
     search,
     page,
     setPage,
@@ -314,7 +416,7 @@ export function AuthFilesPage() {
   } = useAuthFilesQuotaState({
     tab,
     pageItems,
-    visibleScopeKey: `${filter}\n${search}`,
+    visibleScopeKey: `${filter}\n${channelGroupFilter}\n${search}`,
     loading,
     setFiles,
     setDetailFile,
@@ -446,6 +548,9 @@ export function AuthFilesPage() {
             filter={filter}
             setFilter={updateFilter}
             filterCounts={filterCounts}
+            channelGroupOptions={channelGroupOptions}
+            channelGroupFilter={channelGroupFilter}
+            setChannelGroupFilter={updateChannelGroupFilter}
             modelOwnerGroupsLoading={modelOwnerGroupsLoading}
             modelOwnerGroups={modelOwnerGroups}
             selectedModelOwner={selectedModelOwner}

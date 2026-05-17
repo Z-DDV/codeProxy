@@ -12,6 +12,8 @@ import { isRuntimeOnlyAuthFile } from "@/modules/auth-files/helpers/authFilesPag
 interface UseAuthFilesListStateOptions {
   files: AuthFileItem[];
   filter: string;
+  channelGroupFilter?: string;
+  channelGroupsByFileName?: Record<string, string[]>;
   search: string;
   page: number;
   setPage: Dispatch<SetStateAction<number>>;
@@ -22,6 +24,8 @@ interface UseAuthFilesListStateOptions {
 export function useAuthFilesListState({
   files,
   filter,
+  channelGroupFilter = "all",
+  channelGroupsByFileName = {},
   search,
   page,
   setPage,
@@ -45,27 +49,39 @@ export function useAuthFilesListState({
     });
   }, [files, search]);
 
+  const channelGroupScopedFiles = useMemo(() => {
+    const normalizedChannelGroupFilter = normalizeProviderKey(channelGroupFilter);
+    if (!normalizedChannelGroupFilter || normalizedChannelGroupFilter === "all") {
+      return searchFilteredFiles;
+    }
+    return searchFilteredFiles.filter((file) =>
+      (channelGroupsByFileName[file.name] ?? []).some(
+        (groupName) => normalizeProviderKey(groupName) === normalizedChannelGroupFilter,
+      ),
+    );
+  }, [channelGroupFilter, channelGroupsByFileName, searchFilteredFiles]);
+
   const filterCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    searchFilteredFiles.forEach((file) => {
+    channelGroupScopedFiles.forEach((file) => {
       const typeKey = normalizeProviderKey(resolveFileType(file));
       counts[typeKey] = (counts[typeKey] ?? 0) + 1;
     });
-    return { total: searchFilteredFiles.length, counts };
-  }, [searchFilteredFiles]);
+    return { total: channelGroupScopedFiles.length, counts };
+  }, [channelGroupScopedFiles]);
 
   const filteredFiles = useMemo(() => {
     const normalizedFilter = normalizeProviderKey(filter);
     const scoped =
       !normalizedFilter || normalizedFilter === "all"
-        ? searchFilteredFiles
-        : searchFilteredFiles.filter(
+        ? channelGroupScopedFiles
+        : channelGroupScopedFiles.filter(
             (file) => normalizeProviderKey(resolveFileType(file)) === normalizedFilter,
           );
     return [...scoped].sort((a, b) =>
       authFilesSortCollator.compare(resolveAuthFileSortKey(a), resolveAuthFileSortKey(b)),
     );
-  }, [filter, searchFilteredFiles]);
+  }, [channelGroupScopedFiles, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredFiles.length / AUTH_FILES_PAGE_SIZE));
   const safePage = Math.min(totalPages, Math.max(1, page));

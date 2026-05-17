@@ -51,6 +51,9 @@ interface AuthFilesFilesTabProps {
   filter: string;
   setFilter: (value: string) => void;
   filterCounts: { total: number; counts: Record<string, number> };
+  channelGroupOptions: string[];
+  channelGroupFilter: string;
+  setChannelGroupFilter: (value: string) => void;
   modelOwnerGroupsLoading: boolean;
   modelOwnerGroups: AuthFileModelOwnerGroup[];
   selectedModelOwner: string;
@@ -124,6 +127,9 @@ export function AuthFilesFilesTab({
   filter,
   setFilter,
   filterCounts,
+  channelGroupOptions,
+  channelGroupFilter,
+  setChannelGroupFilter,
   modelOwnerGroupsLoading,
   modelOwnerGroups,
   selectedModelOwner,
@@ -188,6 +194,14 @@ export function AuthFilesFilesTab({
   const [draftModelOwner, setDraftModelOwner] = useState(selectedModelOwner);
   const normalizedFilter = normalizeProviderKey(filter);
   const canSetModelOwnerGroup = normalizedFilter !== "all";
+  const channelGroupSelectOptions = useMemo(
+    () =>
+      channelGroupOptions.map((value) => ({
+        value,
+        label: value === "all" ? t("auth_files.channel_group_all") : value,
+      })),
+    [channelGroupOptions, t],
+  );
   const draftModelOwnerGroup =
     draftModelOwner === ""
       ? null
@@ -273,6 +287,21 @@ export function AuthFilesFilesTab({
                   </TabsList>
                 </Tabs>
               </div>
+
+              {channelGroupOptions.length > 1 ? (
+                <div className="w-full max-w-[220px] space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-white/65">
+                    {t("auth_files.channel_group_filter")}
+                  </p>
+                  <Select
+                    value={channelGroupFilter}
+                    onChange={setChannelGroupFilter}
+                    options={channelGroupSelectOptions}
+                    aria-label={t("auth_files.channel_group_filter")}
+                    className="w-full"
+                  />
+                </div>
+              ) : null}
 
               {canSetModelOwnerGroup ? (
                 <div className="flex items-end">
