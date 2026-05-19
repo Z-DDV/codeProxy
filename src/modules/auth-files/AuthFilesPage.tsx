@@ -185,6 +185,7 @@ export function AuthFilesPage() {
 
   const [filter, setFilter] = useState("all");
   const [channelGroupFilter, setChannelGroupFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedFileNames, setSelectedFileNames] = useState<string[]>([]);
@@ -293,6 +294,7 @@ export function AuthFilesPage() {
     if (state.tab) setTab(state.tab);
     if (typeof state.filter === "string") setFilter(state.filter);
     if (typeof state.channelGroup === "string") setChannelGroupFilter(state.channelGroup);
+    if (typeof state.tagFilter === "string") setTagFilter(state.tagFilter);
     if (typeof state.search === "string") setSearch(state.search);
     if (typeof state.page === "number" && Number.isFinite(state.page))
       setPage(Math.max(1, Math.round(state.page)));
@@ -331,8 +333,8 @@ export function AuthFilesPage() {
   }, []);
 
   useEffect(() => {
-    writeAuthFilesUiState({ tab, filter, channelGroup: channelGroupFilter, search, page });
-  }, [channelGroupFilter, filter, page, search, tab]);
+    writeAuthFilesUiState({ tab, filter, channelGroup: channelGroupFilter, tagFilter, search, page });
+  }, [channelGroupFilter, filter, page, search, tab, tagFilter]);
 
   useEffect(() => {
     if (tab !== "files") return;
@@ -354,6 +356,11 @@ export function AuthFilesPage() {
     setPage(1);
   }, []);
 
+  const updateTagFilter = useCallback((value: string) => {
+    setTagFilter(value);
+    setPage(1);
+  }, []);
+
   const channelGroupOptions = useMemo(() => buildChannelGroupOptions(channelGroups), [channelGroups]);
   const channelGroupsByFileName = useMemo(
     () => buildChannelGroupsByFileName(files, channelGroups),
@@ -371,6 +378,7 @@ export function AuthFilesPage() {
   const {
     providerOptions,
     filterCounts,
+    customTagOptions,
     filteredFiles,
     totalPages,
     safePage,
@@ -390,6 +398,7 @@ export function AuthFilesPage() {
     filter,
     channelGroupFilter,
     channelGroupsByFileName,
+    tagFilter,
     search,
     page,
     setPage,
@@ -416,7 +425,7 @@ export function AuthFilesPage() {
   } = useAuthFilesQuotaState({
     tab,
     pageItems,
-    visibleScopeKey: `${filter}\n${channelGroupFilter}\n${search}`,
+    visibleScopeKey: `${filter}\n${channelGroupFilter}\n${tagFilter}\n${search}`,
     loading,
     setFiles,
     setDetailFile,
@@ -551,6 +560,9 @@ export function AuthFilesPage() {
             channelGroupOptions={channelGroupOptions}
             channelGroupFilter={channelGroupFilter}
             setChannelGroupFilter={updateChannelGroupFilter}
+            tagFilter={tagFilter}
+            setTagFilter={updateTagFilter}
+            customTagOptions={customTagOptions}
             modelOwnerGroupsLoading={modelOwnerGroupsLoading}
             modelOwnerGroups={modelOwnerGroups}
             selectedModelOwner={selectedModelOwner}

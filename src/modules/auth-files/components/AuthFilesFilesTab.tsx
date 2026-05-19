@@ -54,6 +54,9 @@ interface AuthFilesFilesTabProps {
   channelGroupOptions: string[];
   channelGroupFilter: string;
   setChannelGroupFilter: (value: string) => void;
+  tagFilter: string;
+  setTagFilter: (value: string) => void;
+  customTagOptions: string[];
   modelOwnerGroupsLoading: boolean;
   modelOwnerGroups: AuthFileModelOwnerGroup[];
   selectedModelOwner: string;
@@ -130,6 +133,9 @@ export function AuthFilesFilesTab({
   channelGroupOptions,
   channelGroupFilter,
   setChannelGroupFilter,
+  tagFilter,
+  setTagFilter,
+  customTagOptions,
   modelOwnerGroupsLoading,
   modelOwnerGroups,
   selectedModelOwner,
@@ -194,14 +200,6 @@ export function AuthFilesFilesTab({
   const [draftModelOwner, setDraftModelOwner] = useState(selectedModelOwner);
   const normalizedFilter = normalizeProviderKey(filter);
   const canSetModelOwnerGroup = normalizedFilter !== "all";
-  const channelGroupSelectOptions = useMemo(
-    () =>
-      channelGroupOptions.map((value) => ({
-        value,
-        label: value === "all" ? t("auth_files.channel_group_all") : value,
-      })),
-    [channelGroupOptions, t],
-  );
   const draftModelOwnerGroup =
     draftModelOwner === ""
       ? null
@@ -220,6 +218,29 @@ export function AuthFilesFilesTab({
       })),
     ],
     [modelOwnerGroups, t],
+  );
+  const customTagSelectOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      {
+        value: "",
+        label: t("auth_files.all_tags"),
+        searchText: t("auth_files.all_tags"),
+      },
+      ...customTagOptions.map((tag) => ({
+        value: tag,
+        label: tag,
+        searchText: tag,
+      })),
+    ],
+    [customTagOptions, t],
+  );
+  const channelGroupSelectOptions = useMemo(
+    () =>
+      channelGroupOptions.map((group) => ({
+        value: group,
+        label: group === "all" ? t("auth_files.channel_group_all") : group,
+      })),
+    [channelGroupOptions, t],
   );
 
   useEffect(() => {
@@ -288,21 +309,6 @@ export function AuthFilesFilesTab({
                 </Tabs>
               </div>
 
-              {channelGroupOptions.length > 1 ? (
-                <div className="w-full max-w-[220px] space-y-1.5">
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-white/65">
-                    {t("auth_files.channel_group_filter")}
-                  </p>
-                  <Select
-                    value={channelGroupFilter}
-                    onChange={setChannelGroupFilter}
-                    options={channelGroupSelectOptions}
-                    aria-label={t("auth_files.channel_group_filter")}
-                    className="w-full"
-                  />
-                </div>
-              ) : null}
-
               {canSetModelOwnerGroup ? (
                 <div className="flex items-end">
                   <HoverTooltip content={t("auth_files.model_owner_group")} placement="top">
@@ -325,6 +331,37 @@ export function AuthFilesFilesTab({
                       ) : null}
                     </Button>
                   </HoverTooltip>
+                </div>
+              ) : null}
+
+              {channelGroupOptions.length > 1 ? (
+                <div className="w-full max-w-[220px] space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-white/65">
+                    {t("auth_files.channel_group_filter")}
+                  </p>
+                  <Select
+                    value={channelGroupFilter}
+                    onChange={setChannelGroupFilter}
+                    options={channelGroupSelectOptions}
+                    aria-label={t("auth_files.channel_group_filter")}
+                    className="w-full"
+                  />
+                </div>
+              ) : null}
+
+              {customTagOptions.length > 0 ? (
+                <div className="w-full max-w-[220px] space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-white/65">
+                    {t("auth_files.tag_filter")}
+                  </p>
+                  <SearchableSelect
+                    value={tagFilter}
+                    onChange={setTagFilter}
+                    options={customTagSelectOptions}
+                    placeholder={t("auth_files.all_tags")}
+                    searchPlaceholder={t("auth_files.tag_filter_search_placeholder")}
+                    aria-label={t("auth_files.tag_filter")}
+                  />
                 </div>
               ) : null}
 
@@ -530,7 +567,7 @@ export function AuthFilesFilesTab({
                 rowHeight={84}
                 caption={t("auth_files.table_caption")}
                 emptyText={t("auth_files_page.no_files_desc")}
-                minWidth="min-w-[1960px]"
+                minWidth="min-w-[1840px]"
                 height="h-[calc(100dvh-452px)]"
                 rowClassName={(row) => {
                   const runtimeOnly = isRuntimeOnlyAuthFile(row);
@@ -572,6 +609,15 @@ export function AuthFilesFilesTab({
                   const subscriptionBadge = renderSubscriptionBadge(file);
                   const stats = resolveAuthFileStats(file, usageIndex);
                   const totalCalls = stats.success + stats.failure;
+                  const successRate = totalCalls > 0 ? (stats.success / totalCalls) * 100 : null;
+                  const successRateClass =
+                    successRate === null
+                      ? "text-slate-500 dark:text-white/45"
+                      : successRate >= 90
+                        ? "text-emerald-700 dark:text-emerald-200"
+                        : successRate >= 50
+                          ? "text-amber-700 dark:text-amber-200"
+                          : "text-rose-700 dark:text-rose-200";
 
                   const items = Array.isArray(state.items) ? (state.items as QuotaItem[]) : [];
                   const slots = provider ? resolveQuotaCardSlots(provider, items) : [];
@@ -659,6 +705,12 @@ export function AuthFilesFilesTab({
                           ) : null}
                           <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">
                             {t("auth_files.calls_count", { count: totalCalls })}
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">
+                            <span>{t("common.success_rate")}</span>
+                            <span className={`tabular-nums ${successRateClass}`}>
+                              {successRate === null ? "--" : `${successRate.toFixed(1)}%`}
+                            </span>
                           </span>
                           {renderRestrictionBadges(file)}
                           {subscriptionBadge}

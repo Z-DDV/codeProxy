@@ -54,6 +54,7 @@ export type AuthFilesUiState = {
   tab?: "files" | "excluded" | "alias";
   filter?: string;
   channelGroup?: string;
+  tagFilter?: string;
   search?: string;
   page?: number;
 };
