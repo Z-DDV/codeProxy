@@ -4,8 +4,10 @@ export interface RoutingConfigGroupItem {
   name?: string;
   description?: string;
   strategy?: "round-robin" | "fill-first";
+  "exclude-from-default"?: boolean;
   match?: {
     channels?: string[];
+    tags?: string[];
   };
   "channel-priorities"?: Record<string, number>;
   "allowed-models"?: string[];

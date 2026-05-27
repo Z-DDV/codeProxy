@@ -12,8 +12,10 @@ export interface ChannelGroupItem {
   description?: string;
   strategy?: "round-robin" | "fill-first";
   priority?: number;
+  "exclude-from-default"?: boolean;
   implicit?: boolean;
   prefixes?: string[];
+  tags?: string[];
   channels?: string[];
   "allowed-models"?: string[];
   "path-routes"?: string[];
@@ -68,8 +70,10 @@ export const channelGroupsApi = {
             typeof item.priority === "number" && Number.isFinite(item.priority)
               ? item.priority
               : undefined,
+          "exclude-from-default": item["exclude-from-default"] === true,
           implicit: item.implicit === true,
           prefixes: normalizeStringList(item.prefixes),
+          tags: normalizeStringList(item.tags),
           channels: normalizeStringList(item.channels),
           "allowed-models": normalizeStringList(item["allowed-models"]),
           "path-routes": normalizeStringList(item["path-routes"]),
